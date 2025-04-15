@@ -26,7 +26,7 @@ class Args:
 
         # Check datasets/process_dataset for datasets
         # Select dataset to train the model
-        self.graph_type = 'Lung'
+        self.graph_type = 'MIMIC-Breast'    # My own dataset
         self.num_graphs = None  # Set it None to take complete dataset
 
         # Whether to produce networkx format graphs for real datasets
@@ -107,8 +107,8 @@ class Args:
         # Calcuated at run time
         self.current_model_save_path = self.model_save_path + \
             self.fname + '_' + self.time + '/'
-        self.current_dataset_path = None
-        self.current_processed_dataset_path = None
+        self.current_dataset_path = None    # (Auto generated) path to folder which contains pickled networkx graphs
+        self.current_processed_dataset_path = None  # (Auto generated)
         self.current_min_dfscode_path = None
         self.current_temp_path = self.temp_path + self.fname + '_' + self.time + '/'
 

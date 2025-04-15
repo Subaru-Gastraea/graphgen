@@ -34,6 +34,13 @@ def check_graph_size(
 
     return True
 
+# breast.txt 依照 produce_graphs_from_raw_format 解析時，每個圖的儲存順序如下：
+# 1) 以 "#" 開頭的一行，用來表示圖的識別碼 (graph_id)。  
+# 2) 下一行是一個整數，代表該圖的節點數。  
+# 3) 接著有對應數目的行，分別存放每個節點的標籤。  
+# 4) 再下一行是一個整數，代表該圖的邊數。  
+# 5) 往後有對應數目的行，每行包含「起始節點 索引、終止節點 索引、邊標籤」。  
+# 6) 結束後通常有空行，然後進入下一個圖的資料。
 
 def produce_graphs_from_raw_format(
     inputfile, output_path, num_graphs=None, min_num_nodes=None,
@@ -343,6 +350,12 @@ def create_graphs(args):
         min_num_nodes, max_num_nodes = None, None
         min_num_edges, max_num_edges = 20, None
 
+    elif 'MIMIC' in args.graph_type:
+        base_path = os.path.join(args.dataset_path, args.graph_type)
+        input_path = base_path + '/all_graphs.txt'
+        min_num_nodes, max_num_nodes = None, None
+        min_num_edges, max_num_edges = None, None 
+
     else:
         print('Dataset - {} is not valid'.format(args.graph_type))
         exit()
@@ -359,7 +372,7 @@ def create_graphs(args):
     if args.produce_graphs:
         mkdir(args.current_dataset_path)
 
-        if args.graph_type in ['Lung', 'Breast', 'Leukemia', 'Yeast', 'All']:
+        if args.graph_type in ['Lung', 'Breast', 'Leukemia', 'Yeast', 'All'] or ('MIMIC' in args.graph_type):
             count = produce_graphs_from_raw_format(
                 input_path, args.current_dataset_path, args.num_graphs,
                 min_num_nodes=min_num_nodes, max_num_nodes=max_num_nodes,
