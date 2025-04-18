@@ -20,13 +20,15 @@ if __name__ == '__main__':
 
     create_dirs(args)
 
-    random.seed(123)
+    # random.seed(123)
 
     graphs = create_graphs(args)
+    graphs_train = graphs
+    graphs_validate = graphs[int(0.90 * len(graphs)):]
 
-    random.shuffle(graphs)
-    graphs_train = graphs[: int(0.80 * len(graphs))]
-    graphs_validate = graphs[int(0.80 * len(graphs)): int(0.90 * len(graphs))]
+    # random.shuffle(graphs)
+    # graphs_train = graphs[: int(0.80 * len(graphs))]
+    # graphs_validate = graphs[int(0.80 * len(graphs)): int(0.90 * len(graphs))]
 
     # show graphs statistics
     print('Model:', args.note)
