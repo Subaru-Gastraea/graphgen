@@ -7,9 +7,24 @@ import torch
 from graphgen.train import predict_graphs as gen_graphs_dfscode_rnn
 from baselines.graph_rnn.train import predict_graphs as gen_graphs_graph_rnn
 from baselines.dgmg.train import predict_graphs as gen_graphs_dgmg
-from utils import get_model_attribute, load_graphs, save_graphs
+from graphgen_utils import get_model_attribute, load_graphs, save_graphs
 
 import metrics.stats
+import sys
+import pickle
+import pathlib
+
+# Add the parent directory to sys.path
+# Executing path: ddx-on-ehr/models/graphgen/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))     # ddx-on-ehr/models/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))  # ddx-on-ehr/
+
+from utils.graph_proc import GraphDataset
+
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from scipy.sparse import lil_matrix
+from tqdm import tqdm
 
 LINE_BREAK = '----------------------------------------------------------------------\n'
 
@@ -26,7 +41,7 @@ class ArgsEvaluate():
             'epoch', self.model_path, self.device)
 
         # Whether to generate networkx format graphs for real datasets
-        self.generate_graphs = True
+        self.generate_graphs = False
 
         self.count = 100    # 2560   # Number of graphs to generate
         self.batch_size = 32  # Must be a factor of count
@@ -110,8 +125,75 @@ if __name__ == "__main__":
 
     if eval_args.generate_graphs:
         generate_graphs(eval_args)
+        print('Graphs generated')
 
-    print('Graphs generated')
+    # Load generated graphs
+    graphs_pred_indices = []
+    if not eval_args.generate_graphs:
+        for name in os.listdir(eval_args.current_graphs_save_path):
+            if name.endswith('.dat'):
+                graphs_pred_indices.append(len(graphs_pred_indices))
+    else:
+        graphs_pred_indices = [i for i in range(eval_args.count)]
+
+    graphs_gen_label0 = load_graphs(
+            eval_args.current_graphs_save_path, graphs_pred_indices)
+    
+    # Load test graphs
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    sample_dataset_path = pathlib.Path(project_root) / 'dataset/preprocessed_data/sample_dataset.pkl'
+
+    if os.path.exists(sample_dataset_path):
+         with open(sample_dataset_path, 'rb') as f:
+            sample_dataset = pickle.load(f)
+   
+    dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
+    del sample_dataset
+    dataset.set_split('test')
+
+    # 1. 將graph轉為adjacency matrix，計算相似度 (同位置match的1個數/總個數)
+    def graph_similarity(G1, G2):
+        all_nodes = set(G1.nodes()) | set(G2.nodes())
+        node_index = {node: i for i, node in enumerate(all_nodes)}
+        size = len(all_nodes)
+
+        def build_adj_matrix(G):
+            # Use a sparse matrix to save memory
+            mat = lil_matrix((size, size), dtype=np.int8)
+            for u, v in G.edges():
+                i, j = node_index[u], node_index[v]
+                mat[i, j] = mat[j, i] = 1
+            return mat.toarray()
+
+        adj1 = build_adj_matrix(G1)
+        adj2 = build_adj_matrix(G2)
+        match_count = np.sum((adj1 == 1) & (adj2 == 1))
+        total_count = size * size
+        return match_count / total_count
+
+    # 2. 每個testing graph和label=0的100張生成圖，計算平均相似度
+    pred_labels = []
+    sim_scores = []
+    test_labels = []
+    for test_g, test_label in tqdm(dataset, desc="Evaluating test graphs"):
+        test_labels.append(test_label if test_label == 0 else 1)  # label=0以外的，合併成label=1
+
+        sims = [graph_similarity(test_g, gen_g) for gen_g in graphs_gen_label0]
+        avg_sim = np.mean(sims)
+        sim_scores.append(avg_sim)
+        # 3. 平均相似度>=0.5的testing graph，判斷為label=0
+        pred_labels.append(0 if avg_sim >= 0.5 else 1)
+
+    # 4. 用合適的metrics，呈現testing效果
+    acc = accuracy_score(test_labels, pred_labels)
+    prec = precision_score(test_labels, pred_labels, pos_label=0)
+    rec = recall_score(test_labels, pred_labels, pos_label=0)
+    f1 = f1_score(test_labels, pred_labels, pos_label=0)
+
+    print(f"Accuracy: {acc:.4f}")
+    print(f"Precision (label=0): {prec:.4f}")
+    print(f"Recall (label=0): {rec:.4f}")
+    print(f"F1-score (label=0): {f1:.4f}")
 
     # random.seed(123)
 

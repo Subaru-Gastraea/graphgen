@@ -5,7 +5,7 @@ from torch.distributions import Categorical
 import networkx as nx
 
 from graphgen.model import create_model
-from utils import load_model, get_model_attribute
+from graphgen_utils import load_model, get_model_attribute
 from dfscode.dfs_wrapper import graph_from_dfscode
 
 

@@ -5,7 +5,7 @@ Code adapted from https://github.com/dmlc/dgl/tree/master/examples/pytorch/dgmg
 import networkx as nx
 
 from baselines.dgmg.model import create_model
-from utils import load_model, get_model_attribute
+from graphgen_utils import load_model, get_model_attribute
 
 
 def evaluate_loss(model, data):

@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 from tqdm.auto import tqdm
 
-from utils import mkdir
+from graphgen_utils import mkdir
 from datasets.preprocess import (
     mapping, graphs_to_min_dfscodes,
     min_dfscodes_to_tensors, random_walk_with_restart_sampling

@@ -4,7 +4,7 @@ import pickle
 from torch.utils.data import DataLoader
 
 from args import Args
-from utils import create_dirs
+from graphgen_utils import create_dirs
 from datasets.process_dataset import create_graphs
 from datasets.preprocess import calc_max_prev_node, dfscodes_weights
 from baselines.dgmg.data import DGMG_Dataset_from_file

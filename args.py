@@ -1,6 +1,6 @@
 from datetime import datetime
 import torch
-from utils import get_model_attribute
+from graphgen_utils import get_model_attribute
 
 
 class Args:

@@ -6,7 +6,7 @@ import networkx as nx
 
 from baselines.graph_rnn.model import create_model
 from baselines.graph_rnn.helper import get_attributes_len_for_graph_rnn
-from utils import load_model, get_model_attribute
+from graphgen_utils import load_model, get_model_attribute
 
 EPS = 1e-9
 

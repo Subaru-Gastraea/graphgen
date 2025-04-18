@@ -4,7 +4,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.nn.utils import clip_grad_value_
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import save_model, load_model, get_model_attribute
+from graphgen_utils import save_model, load_model, get_model_attribute
 from graphgen.train import evaluate_loss as eval_loss_dfscode_rnn
 from baselines.graph_rnn.train import evaluate_loss as eval_loss_graph_rnn
 from baselines.dgmg.train import evaluate_loss as eval_loss_dgmg
