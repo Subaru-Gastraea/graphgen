@@ -7,6 +7,8 @@ import sys
 import pickle
 import pathlib
 
+import pandas as pd
+
 # Add the parent directory to sys.path
 # Executing path: ddx-on-ehr/models/graphgen/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))     # ddx-on-ehr/models/
@@ -24,25 +26,13 @@ class ArgsEvaluate():
     def __init__(self, model_path):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:1' if torch.cuda.is_available() else 'cpu')
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat' # 'model_name'
         self.model_path = model_path
 
         self.num_epochs = get_model_attribute(
             'epoch', self.model_path, self.device)
-
-        self.count = 100    # 2560   # Number of graphs to generate
-        self.batch_size = 32  # Must be a factor of count
-
-        self.metric_eval_batch_size = 256
-
-        # Specific DFScodeRNN
-        self.max_num_edges = 50
-
-        # Specific to GraphRNN
-        self.min_num_node = 0
-        self.max_num_node = 40
 
         self.train_args = get_model_attribute(
             'saved_args', self.model_path, self.device)
@@ -103,22 +93,33 @@ if __name__ == "__main__":
     pred_labels = []
     sim_scores = []
     test_labels = []
-    for test_g, test_label in tqdm(dataset, desc="Evaluating test graphs"):
+    
+    FILT_SIM_ZERO = False  # 是否過濾相似度為0的圖
+    sim_thresh = 0.1
+    print(f"Similarity threshold: {sim_thresh}")
+    print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
+
+    sim_path = pathlib.Path('graph_sims/')
+    sim_path.mkdir(parents=True, exist_ok=True)
+
+    for idx, (test_g, test_label) in enumerate(tqdm(dataset, desc="Evaluating test graphs")):
         test_labels.append(test_label if test_label == 0 else 1)  # label=0以外的，合併成label=1
+        test_graph_path = sim_path / f"test_graph_{idx}.csv"
 
         # [0]: lab_similarity
-        sims = [dataset.calculate_similarity(test_g, gen_g, node_attr_name='type')[0] for gen_g in label_gen_graphs[0]]
-        sims = [s for s in sims if s > 0]  # 去掉相似度為0的圖
+        if os.path.exists(test_graph_path):
+            sims = pd.read_csv(test_graph_path, header=None)[0].tolist()
+        else:
+            sims = [dataset.calculate_similarity(test_g, gen_g, node_attr_name='type')[0] for gen_g in label_gen_graphs[0]]
+            pd.DataFrame(sims).to_csv(test_graph_path, header=False, index=False)
+
+        if FILT_SIM_ZERO:
+            sims = [s for s in sims if s > 0]  # 去掉相似度為0的圖
+
         avg_sim = np.mean(sims) if len(sims) > 0 else 0
         sim_scores.append(avg_sim)
         # 3. 平均相似度>=0.5的testing graph，判斷為label=0
-        pred_labels.append(0 if avg_sim >= 0.5 else 1)
-
-        with open('pred_labels.txt', 'a') as f:
-            f.write(f"Test label: {test_label}\n")
-            f.write(f"Non zero sim. graphs: {len(sims)}\n")
-            f.write(f"Avg. sim.: {avg_sim}\n")
-            f.write("\n")
+        pred_labels.append(0 if avg_sim >= sim_thresh else 1)
 
     # 4. 用合適的metrics，呈現testing效果
     acc = accuracy_score(test_labels, pred_labels)
