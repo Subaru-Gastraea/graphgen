@@ -11,7 +11,7 @@ class Args:
     def __init__(self):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:3' if torch.cuda.is_available() else 'cpu')
+            'cuda:1' if torch.cuda.is_available() else 'cpu')
 
         # Clean tensorboard
         self.clean_tensorboard = False
@@ -26,7 +26,7 @@ class Args:
 
         # Check datasets/process_dataset for datasets
         # Select dataset to train the model
-        self.graph_type = 'MIMIC-Prostate'    # My own dataset    ###############################
+        self.graph_type = 'MIMIC-Breast'    # My own dataset    ###############################
         self.num_graphs = None  # Set it None to take complete dataset
 
         # Whether to produce networkx format graphs for real datasets
