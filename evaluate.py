@@ -27,7 +27,7 @@ class ArgsEvaluate():
         self.generate_graphs = True
 
         self.count = 100    # 2560   # Number of graphs to generate
-        self.batch_size = 32  # Must be a factor of count
+        self.batch_size = 25    # 32  # Must be a factor of count
 
         self.metric_eval_batch_size = 256
 

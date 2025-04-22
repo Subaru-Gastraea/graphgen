@@ -17,10 +17,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from utils.graph_proc import GraphDataset
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from scipy.sparse import lil_matrix
 from tqdm import tqdm
 
+import argparse
+from sklearn.metrics import classification_report, confusion_matrix
 
 class ArgsEvaluate():
     def __init__(self, model_path):
@@ -28,7 +28,6 @@ class ArgsEvaluate():
         self.device = torch.device(
             'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        # self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat' # 'model_name'
         self.model_path = model_path
 
         self.num_epochs = get_model_attribute(
@@ -43,13 +42,16 @@ class ArgsEvaluate():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sim_thresh', type=float, default=0.5, help='Similarity threshold for classification')
+    args = parser.parse_args()
 
     model_paths = {
         0: 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat',
-        # 1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung_2025-04-18 01:22:37/DFScodeRNN_MIMIC-Lung_3200.dat',
-        # 2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary_2025-04-18 01:28:11/DFScodeRNN_MIMIC-Ovary_7820.dat',
-        # 3: 'model_save/' + 'DFScodeRNN_MIMIC-Colon_2025-04-18 01:30:38/DFScodeRNN_MIMIC-Colon_6480.dat',
-        # 4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate_2025-04-18 01:32:00/DFScodeRNN_MIMIC-Prostate_3940.dat'
+        1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung_2025-04-18 01:22:37/DFScodeRNN_MIMIC-Lung_3200.dat',
+        2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary_2025-04-18 01:28:11/DFScodeRNN_MIMIC-Ovary_4000.dat',
+        3: 'model_save/' + 'DFScodeRNN_MIMIC-Colon_2025-04-18 01:30:38/DFScodeRNN_MIMIC-Colon_4000.dat',
+        4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate_2025-04-18 01:32:00/DFScodeRNN_MIMIC-Prostate_3940.dat'
     }
 
     # Load generated graphs
@@ -88,46 +90,87 @@ if __name__ == "__main__":
     dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
     del sample_dataset
     dataset.set_split('test')
-
-    # 每個testing graph和label=0的100張生成圖，計算平均相似度
-    pred_labels = []
-    sim_scores = []
-    test_labels = []
     
-    FILT_SIM_ZERO = False  # 是否過濾相似度為0的圖
-    sim_thresh = 0.1
+    FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
+    sim_thresh = args.sim_thresh  # 相似度閾值
     print(f"Similarity threshold: {sim_thresh}")
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
     sim_path = pathlib.Path('graph_sims/')
     sim_path.mkdir(parents=True, exist_ok=True)
 
-    for idx, (test_g, test_label) in enumerate(tqdm(dataset, desc="Evaluating test graphs")):
-        test_labels.append(test_label if test_label == 0 else 1)  # label=0以外的，合併成label=1
-        test_graph_path = sim_path / f"test_graph_{idx}.csv"
+    num_labels = len(label_gen_graphs)  # 5 , exclude label=5 (others)
+    num_gen_graphs = min([len(gen_graphs) for gen_graphs in label_gen_graphs.values()])  # 每個label有100張生成圖
+    pred_labels = []
+    test_labels = []
 
-        # [0]: lab_similarity
+    print(f"Number of generated graphs per label: {num_gen_graphs}")
+
+    for idx, (test_g, test_label) in enumerate(tqdm(dataset, desc="Evaluating test graphs")):
+        test_labels.append(test_label)
+        test_graph_path = sim_path / f"test_graph_{idx}.npy"
+
+        # shape: (num_labels, num_gen_graphs)
         if os.path.exists(test_graph_path):
-            sims = pd.read_csv(test_graph_path, header=None)[0].tolist()
+            sim_matrix = np.load(test_graph_path)
         else:
-            sims = [dataset.calculate_similarity(test_g, gen_g, node_attr_name='type')[0] for gen_g in label_gen_graphs[0]]
-            pd.DataFrame(sims).to_csv(test_graph_path, header=False, index=False)
+            sim_matrix = np.zeros((num_labels, num_gen_graphs))
+            calc_sim = dataset.calculate_similarity
+            # Use numpy vectorization where possible, and avoid repeated attribute lookups
+            for label in range(num_labels):
+                gen_graphs = label_gen_graphs[label][:num_gen_graphs]
+                # Use list comprehension, but pre-bind the function for less overhead
+                sims = [calc_sim(test_g, gen_g, node_attr_name='type')[0] for gen_g in gen_graphs]
+                sim_matrix[label, :] = sims
+            np.save(test_graph_path, sim_matrix)
 
         if FILT_SIM_ZERO:
-            sims = [s for s in sims if s > 0]  # 去掉相似度為0的圖
+            # 過濾每個label下相似度為0的生成圖
+            filtered_sim_matrix = []
+            for label in range(num_labels):
+                nonzero = sim_matrix[label] > 0
+                if np.any(nonzero):
+                    filtered_sim_matrix.append(sim_matrix[label][nonzero])
+                else:
+                    filtered_sim_matrix.append(np.array([0]))
+        else:
+            filtered_sim_matrix = [sim_matrix[label] for label in range(num_labels)]
 
-        avg_sim = np.mean(sims) if len(sims) > 0 else 0
-        sim_scores.append(avg_sim)
-        # 3. 平均相似度>=0.5的testing graph，判斷為label=0
-        pred_labels.append(0 if avg_sim >= sim_thresh else 1)
+        # 計算每個label的平均相似度
+        avg_sims = np.array([np.mean(filtered_sim_matrix[label]) for label in range(num_labels)])
+        # print(f"Average similarity for test graph {idx}:")
+        # print(avg_sims)
 
-    # 4. 用合適的metrics，呈現testing效果
-    acc = accuracy_score(test_labels, pred_labels)
-    prec = precision_score(test_labels, pred_labels, pos_label=0)
-    rec = recall_score(test_labels, pred_labels, pos_label=0)
-    f1 = f1_score(test_labels, pred_labels, pos_label=0)
+        # softmax normalization
+        exp_sims = np.exp(avg_sims)
+        norm_avg_sims = exp_sims / np.sum(exp_sims)
 
-    print(f"Accuracy: {acc:.4f}")
-    print(f"Precision (label=0): {prec:.4f}")
-    print(f"Recall (label=0): {rec:.4f}")
-    print(f"F1-score (label=0): {f1:.4f}")
+        # print(f"Normalized average similarity for test graph {idx}:")
+        # print(norm_avg_sims)
+
+        # multi-class prediction
+        if np.all(norm_avg_sims < sim_thresh):
+            pred_labels.append(num_labels)  # label 5: 全部都低於閾值
+        else:
+            pred_labels.append(int(np.argmax(norm_avg_sims)))
+
+        # print(f"Predicted label for test graph {idx}: {pred_labels[-1]}")
+        # print(f"True label for test graph {idx}: {test_label}")
+
+        # exit()
+
+    # 評估: multi-class classification
+    print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4))
+    print("Confusion matrix:")
+    print(confusion_matrix(test_labels, pred_labels, labels=list(range(num_labels+1))))
+
+    # Save classification report to file
+    report = classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False)
+    with open('classification_report.txt', 'w') as f:
+        f.write(report)
+
+    # Save confusion matrix to file
+    cm = confusion_matrix(test_labels, pred_labels, labels=list(range(num_labels+1)))
+    cm_df = pd.DataFrame(cm, index=[f"True_{i}" for i in range(num_labels+1)],
+                            columns=[f"Pred_{i}" for i in range(num_labels+1)])
+    cm_df.to_csv('confusion_matrix.csv')
