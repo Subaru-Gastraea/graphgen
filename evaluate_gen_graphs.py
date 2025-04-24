@@ -103,6 +103,7 @@ if __name__ == "__main__":
     num_gen_graphs = min([len(gen_graphs) for gen_graphs in label_gen_graphs.values()])  # 每個label有100張生成圖
     pred_labels = []
     test_labels = []
+    all_norm_avg_sims = []
 
     print(f"Number of generated graphs per label: {num_gen_graphs}")
 
@@ -145,6 +146,11 @@ if __name__ == "__main__":
         exp_sims = np.exp(avg_sims)
         norm_avg_sims = exp_sims / np.sum(exp_sims)
 
+        # Append a 0 for label 5 (others)
+        fix_norm_avg_sims = np.append(norm_avg_sims, 0.0)
+        # Collect all norm_avg_sims for saving later
+        all_norm_avg_sims.append(fix_norm_avg_sims)
+
         # print(f"Normalized average similarity for test graph {idx}:")
         # print(norm_avg_sims)
 
@@ -158,6 +164,10 @@ if __name__ == "__main__":
         # print(f"True label for test graph {idx}: {test_label}")
 
         # exit()
+
+    # Save all norm_avg_sims to a CSV file
+    all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
+    all_norm_avg_sims_df.to_csv('all_norm_avg_sims.csv', index=False, header=False)
 
     # 評估: multi-class classification
     print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4))
