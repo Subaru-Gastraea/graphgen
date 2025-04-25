@@ -44,6 +44,7 @@ class ArgsEvaluate():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--sim_thresh', type=float, default=0.5, help='Similarity threshold for classification')
+    parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing graphs')
     args = parser.parse_args()
 
     model_paths = {
@@ -90,13 +91,14 @@ if __name__ == "__main__":
     dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
     del sample_dataset
     dataset.set_split('test')
+    dataset.time_slice_graphs(args.time_slice_pct)
     
     FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
     sim_thresh = args.sim_thresh  # 相似度閾值
     print(f"Similarity threshold: {sim_thresh}")
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
-    sim_path = pathlib.Path('graph_sims/')
+    sim_path = pathlib.Path(f'graph_sims/time_slice_pct_{args.time_slice_pct}/')
     sim_path.mkdir(parents=True, exist_ok=True)
 
     num_labels = len(label_gen_graphs)  # 5 , exclude label=5 (others)
@@ -139,8 +141,6 @@ if __name__ == "__main__":
 
         # 計算每個label的平均相似度
         avg_sims = np.array([np.mean(filtered_sim_matrix[label]) for label in range(num_labels)])
-        # print(f"Average similarity for test graph {idx}:")
-        # print(avg_sims)
 
         # softmax normalization
         exp_sims = np.exp(avg_sims)
@@ -148,26 +148,20 @@ if __name__ == "__main__":
 
         # Append a 0 for label 5 (others)
         fix_norm_avg_sims = np.append(norm_avg_sims, 0.0)
+
+        bias = 0.05
+        if np.max(norm_avg_sims) <= 0.2:    # label 0 ~ 4 are 0.2
+            fix_norm_avg_sims[5] = min(0.2 + bias, 0.25)  # 不超過 0.25
+
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
 
-        # print(f"Normalized average similarity for test graph {idx}:")
-        # print(norm_avg_sims)
-
         # multi-class prediction
-        if np.all(norm_avg_sims < sim_thresh):
-            pred_labels.append(num_labels)  # label 5: 全部都低於閾值
-        else:
-            pred_labels.append(int(np.argmax(norm_avg_sims)))
-
-        # print(f"Predicted label for test graph {idx}: {pred_labels[-1]}")
-        # print(f"True label for test graph {idx}: {test_label}")
-
-        # exit()
+        pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
 
     # Save all norm_avg_sims to a CSV file
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
-    all_norm_avg_sims_df.to_csv('all_norm_avg_sims.csv', index=False, header=False)
+    all_norm_avg_sims_df.to_csv(sim_path / 'test_norm_avg_sims.csv', index=False, header=False)
 
     # 評估: multi-class classification
     print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4))
