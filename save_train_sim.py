@@ -19,9 +19,6 @@ from utils.graph_proc import GraphDataset
 import numpy as np
 from tqdm import tqdm
 
-import argparse
-from sklearn.metrics import classification_report, confusion_matrix
-
 class ArgsEvaluate():
     def __init__(self, model_path):
         # Can manually select the device too
@@ -42,10 +39,6 @@ class ArgsEvaluate():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--sim_thresh', type=float, default=0.5, help='Similarity threshold for classification')
-    parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing graphs')
-    args = parser.parse_args()
 
     model_paths = {
         0: 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat',
@@ -80,7 +73,7 @@ if __name__ == "__main__":
 
         label_gen_graphs[label] = gen_graphs
 
-    # Load test graphs
+    # Load train graphs
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     sample_dataset_path = pathlib.Path(project_root) / 'dataset/preprocessed_data/sample_dataset.pkl'
 
@@ -90,28 +83,23 @@ if __name__ == "__main__":
    
     dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
     del sample_dataset
-    dataset.set_split('test')
-    dataset.time_slice_graphs(args.time_slice_pct)
+    dataset.set_split('train')
     
     FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
-    sim_thresh = args.sim_thresh  # 相似度閾值
-    print(f"Similarity threshold: {sim_thresh}")
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
-    sim_path = pathlib.Path(f'graph_sims/time_slice_pct_{args.time_slice_pct}/')
+    sim_path = pathlib.Path(f'train_graph_sims/')
     sim_path.mkdir(parents=True, exist_ok=True)
 
     num_labels = len(label_gen_graphs)  # 5 , exclude label=5 (others)
     num_gen_graphs = min([len(gen_graphs) for gen_graphs in label_gen_graphs.values()])  # 每個label有100張生成圖
-    pred_labels = []
-    test_labels = []
+
     all_norm_avg_sims = []
 
     print(f"Number of generated graphs per label: {num_gen_graphs}")
 
-    for idx, (test_g, test_label) in enumerate(tqdm(dataset, desc="Evaluating test graphs")):
-        test_labels.append(test_label)
-        test_graph_path = sim_path / f"test_graph_{idx}.npy"
+    for idx, (test_g, test_label) in enumerate(tqdm(dataset, desc="Saving train graph similarities")):     
+        test_graph_path = sim_path / f"train_graph_{idx}.npy"
 
         # shape: (num_labels, num_gen_graphs)
         if os.path.exists(test_graph_path):
@@ -149,33 +137,14 @@ if __name__ == "__main__":
         # Append a 0 for label 5 (others)
         fix_norm_avg_sims = np.append(norm_avg_sims, 0.0)
 
-        avg_val = np.mean(norm_avg_sims)
-        bias = 0.05
-        if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
-            fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
+        # avg_val = np.mean(norm_avg_sims)
+        # bias = 0.05
+        # if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
+        #     fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
 
-        # multi-class prediction
-        pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
-
     # Save all norm_avg_sims to a CSV file
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
-    all_norm_avg_sims_df.to_csv(sim_path / 'test_norm_avg_sims.csv', index=False, header=False)
-
-    # 評估: multi-class classification
-    print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4))
-    print("Confusion matrix:")
-    print(confusion_matrix(test_labels, pred_labels, labels=list(range(num_labels+1))))
-
-    # Save classification report to file
-    report = classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False)
-    with open('classification_report.txt', 'w') as f:
-        f.write(report)
-
-    # Save confusion matrix to file
-    cm = confusion_matrix(test_labels, pred_labels, labels=list(range(num_labels+1)))
-    cm_df = pd.DataFrame(cm, index=[f"True_{i}" for i in range(num_labels+1)],
-                            columns=[f"Pred_{i}" for i in range(num_labels+1)])
-    cm_df.to_csv('confusion_matrix.csv')
+    all_norm_avg_sims_df.to_csv(sim_path / 'train_norm_avg_sims.csv', index=False, header=False)

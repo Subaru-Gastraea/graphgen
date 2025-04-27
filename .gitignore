@@ -28,3 +28,4 @@ __pycache__
 
 # Graph similarity
 graph_sims/
+train_graph_sims/
