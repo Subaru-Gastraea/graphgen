@@ -43,7 +43,6 @@ class ArgsEvaluate():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--sim_thresh', type=float, default=0.5, help='Similarity threshold for classification')
     parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing graphs')
     args = parser.parse_args()
 
@@ -91,11 +90,11 @@ if __name__ == "__main__":
     dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
     del sample_dataset
     dataset.set_split('test')
+    print("Time slice percentage:", args.time_slice_pct)
+    print("Slicing graphs...")
     dataset.time_slice_graphs(args.time_slice_pct)
     
     FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
-    sim_thresh = args.sim_thresh  # 相似度閾值
-    print(f"Similarity threshold: {sim_thresh}")
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
     sim_path = pathlib.Path(f'graph_sims/time_slice_pct_{args.time_slice_pct}/')
@@ -149,10 +148,10 @@ if __name__ == "__main__":
         # Append a 0 for label 5 (others)
         fix_norm_avg_sims = np.append(norm_avg_sims, 0.0)
 
-        avg_val = np.mean(norm_avg_sims)
-        bias = 0.05
-        if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
-            fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
+        # avg_val = np.mean(norm_avg_sims)
+        # bias = 0.05
+        # if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
+        #     fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
@@ -162,15 +161,15 @@ if __name__ == "__main__":
 
     # Save all norm_avg_sims to a CSV file
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
-    all_norm_avg_sims_df.to_csv(sim_path / 'test_norm_avg_sims.csv', index=False, header=False)
+    all_norm_avg_sims_df.to_csv(sim_path / 'test_norm_avg_sims_v1.csv', index=False, header=False)
 
     # 評估: multi-class classification
-    print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4))
+    print(classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, zero_division=0))
     print("Confusion matrix:")
     print(confusion_matrix(test_labels, pred_labels, labels=list(range(num_labels+1))))
 
     # Save classification report to file
-    report = classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False)
+    report = classification_report(test_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False, zero_division=0)
     with open('classification_report.txt', 'w') as f:
         f.write(report)
 
