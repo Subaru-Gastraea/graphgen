@@ -26,7 +26,7 @@ class Args:
 
         # Check datasets/process_dataset for datasets
         # Select dataset to train the model
-        self.graph_type = 'MIMIC-Breast'    # My own dataset    ###############################
+        self.graph_type = 'MIMIC-Ovary-diff_time'    # My own dataset    ###############################
         self.num_graphs = None  # Set it None to take complete dataset
 
         # Whether to produce networkx format graphs for real datasets
@@ -58,7 +58,8 @@ class Args:
         self.embedding_size_edge_output = 512  # the size for edge output embedding
         self.dfscode_rnn_dropout = 0.2  # Dropout layer in between RNN layers
         self.loss_type = 'BCE'
-        self.weights = False
+        self.weights = False    # Use weights for BCE (Calculated by 'dfscodes_weights' function in preprocess.py)
+                                # Set by feature_map[w], w = 't1_weight', 't2_weight', 'v1_weight', 'e_weight', 'v2_weight'
 
         # Specific to DFScodeRNN
         self.rnn_type = 'LSTM'  # LSTM | GRU
@@ -95,7 +96,7 @@ class Args:
 
         # Model save and validate parameters
         self.save_model = True
-        self.epochs_save = 20
+        self.epochs_save = 100  # Save model every 'epochs_save' epochs
         self.epochs_validate = 1
 
         # Time at which code is run

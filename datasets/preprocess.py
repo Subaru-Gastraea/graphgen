@@ -261,11 +261,12 @@ def dfscodes_weights(dataset_path, graph_list, feature_map, device):
         with open(dataset_path + 'graph' + str(idx) + '.dat', 'rb') as f:
             min_dfscode = pickle.load(f)
             for code in min_dfscode:
-                freq['t1_freq'][int(code[0])] += 1
-                freq['t2_freq'][int(code[1])] += 1
-                freq['v1_freq'][feature_map['node_forward'][code[2]]] += 1
-                freq['e_freq'][feature_map['edge_forward'][code[3]]] += 1
-                freq['v2_freq'][feature_map['node_forward'][code[4]]] += 1
+                # Count the frequency
+                freq['t1_freq'][int(code[0])] += 1  # Timestamp 1
+                freq['t2_freq'][int(code[1])] += 1  # Timestamp 2
+                freq['v1_freq'][feature_map['node_forward'][code[2]]] += 1  # Head node
+                freq['e_freq'][feature_map['edge_forward'][code[3]]] += 1   # Edge
+                freq['v2_freq'][feature_map['node_forward'][code[4]]] += 1  # Tail node
 
     freq['t1_freq'][-1] = len(graph_list)
     freq['t2_freq'][-1] = len(graph_list)

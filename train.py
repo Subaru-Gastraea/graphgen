@@ -107,6 +107,12 @@ def train(args, dataloader_train, model, feature_map, dataloader_validate=None):
             epoch, args, model, dataloader_train, optimizer, scheduler, feature_map, writer)
         epoch += 1
 
+        # To view the TensorBoard logs for the loss information stored in the code, you can:
+        # Run TensorBoard:
+        #     Start TensorBoard by pointing it to the log directory:
+        #         tensorboard --logdir <path_to_log_directory>
+        #     Replace `<path_to_log_directory>` with the actual path where the logs are being saved.
+        #
         # logging
         if args.log_tensorboard:
             writer.add_scalar('{} {} Loss/train'.format(

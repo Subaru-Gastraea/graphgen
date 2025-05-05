@@ -43,7 +43,7 @@ def gen_subgraphs(args):
          with open(sample_dataset_path, 'rb') as f:
             sample_dataset = pickle.load(f)
    
-    dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
+    dataset = GraphDataset(sample_dataset, dev=False, diff_node_type_time=args.diff_node_type_time, project_root=project_root)
     del sample_dataset
     dataset.set_split('train')
 
@@ -79,6 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--target_label', type=int, default=0, help='Generate .txt only for this label')
     parser.add_argument('--output', type=str, default='MIMIC-Breast/', required=True)
     parser.add_argument('--devm', action='store_true', default=False, help='develop mode [add "--devm" to enable]')
+    parser.add_argument('--diff_node_type_time', action='store_true', default=False, help='set node type with different time postfix [add "--diff_node_type_time" to enable]')
     args = parser.parse_args()
 
     gen_subgraphs(args)
