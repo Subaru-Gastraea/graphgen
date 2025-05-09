@@ -26,7 +26,7 @@ class ArgsEvaluate():
     def __init__(self, model_path):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:0' if torch.cuda.is_available() else 'cpu')
+            'cuda:1' if torch.cuda.is_available() else 'cpu')
 
         self.model_path = model_path
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('--train_or_test', type=str, default='test', help='Compare with train or test graphs')
     parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing test graphs')
     parser.add_argument('--diff_node_type_time', action='store_true', default=False, help='Time-aware node types [add "--diff_node_type_time" to enable]')
-    parser.add_argument('--folder_postfix', type=str, default='', help='Postfix for the folder name to save the graph similarities')
+    parser.add_argument('--avg_sims_csv_postfix', type=str, default='', help='Postfix for the folder name to save the graph similarities')
     args = parser.parse_args()
 
     model_paths = {
@@ -103,14 +103,10 @@ if __name__ == "__main__":
     FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
-    folder_postfix = args.folder_postfix
-    if folder_postfix and folder_postfix[0] != '_':
-        folder_postfix = '_' + folder_postfix
-
     if args.diff_node_type_time:
-        sim_path_root = pathlib.Path(f'time_aware_sims{folder_postfix}/')
+        sim_path_root = pathlib.Path(f'time_aware_sims/')
     else:
-        sim_path_root = pathlib.Path(f'non_time_aware_sims{folder_postfix}/')
+        sim_path_root = pathlib.Path(f'non_time_aware_sims/')
     if args.train_or_test == 'train':
         sim_path = sim_path_root / 'train_graph_sims/'
     else:
@@ -173,8 +169,8 @@ if __name__ == "__main__":
             fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
         # Apply sigmoid scaling
-        # scaled_sims = (fix_norm_avg_sims - 0.2) * 50
-        # fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
+        scaled_sims = (fix_norm_avg_sims - 0.2) * 50
+        fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
 
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
@@ -183,8 +179,12 @@ if __name__ == "__main__":
         pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
 
     # Save all norm_avg_sims to a CSV file
+    avg_sims_csv_postfix = args.avg_sims_csv_postfix
+    if avg_sims_csv_postfix and not avg_sims_csv_postfix.startswith('_'):
+        avg_sims_csv_postfix = '_' + avg_sims_csv_postfix
+        
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
-    all_norm_avg_sims_df.to_csv(sim_path / f'{args.train_or_test}_norm_avg_sims_v2.csv', index=False, header=False)
+    all_norm_avg_sims_df.to_csv(sim_path / f'{args.train_or_test}_norm_avg_sims{avg_sims_csv_postfix}.csv', index=False, header=False)
 
     if args.train_or_test == 'test':
         # 評估: multi-class classification
