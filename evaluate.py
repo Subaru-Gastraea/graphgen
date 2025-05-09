@@ -16,9 +16,9 @@ class ArgsEvaluate():
     def __init__(self):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:1' if torch.cuda.is_available() else 'cpu')
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Prostate_2025-04-18 01:32:00/DFScodeRNN_MIMIC-Prostate_3940.dat' # 'model_name'
+        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Lung-diff_time_2025-05-02 22:30:15/DFScodeRNN_MIMIC-Lung-diff_time_4600.dat' # 'model_name'
 
         self.num_epochs = get_model_attribute(
             'epoch', self.model_path, self.device)
