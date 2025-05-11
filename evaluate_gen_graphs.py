@@ -169,8 +169,8 @@ if __name__ == "__main__":
             fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
         # Apply sigmoid scaling
-        scaled_sims = (fix_norm_avg_sims - 0.2) * 50
-        fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
+        # scaled_sims = (fix_norm_avg_sims - 0.2) * 50
+        # fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
 
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
