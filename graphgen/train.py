@@ -12,7 +12,7 @@ import numpy as np
 from tqdm import tqdm
 import pathlib as Pathlib
 
-seed = 42
+seed = 25
 torch.manual_seed(seed)
 np.random.seed(seed)
 
@@ -125,6 +125,7 @@ def predict_graphs(eval_args):
 
     # Whether the node types of graph are time-aware
     diff_node_type_time = eval_args.diff_node_type_time
+    LIMIT_REPEAT = 5    # Maximum number of times to repeat the prediction step
 
     # 建立模型並載入已訓練參數
     model = create_model(train_args, feature_map)
@@ -231,7 +232,7 @@ def predict_graphs(eval_args):
                 if diff_node_type_time:
                     repeat_flag = True
                     for batch_sample_i in range(eval_args.batch_size):
-                        if batch_sample_repeat_cnt[batch_sample_i] < 5:
+                        if batch_sample_repeat_cnt[batch_sample_i] < LIMIT_REPEAT:
                             batch_sample_repeat_cnt[batch_sample_i] = 0     # Reset repeat count each step
 
                     while repeat_flag:
@@ -240,7 +241,7 @@ def predict_graphs(eval_args):
                         # Filter sampled vertices to include only nodes with the desired postfix
                         for batch_sample_i in range(eval_args.batch_size):
 
-                            if batch_sample_repeat_cnt[batch_sample_i] >= 5:    # Skip this sample (Not used for graph generation)
+                            if batch_sample_repeat_cnt[batch_sample_i] >= LIMIT_REPEAT:    # Skip this sample (Not used for graph generation)
                                 batch_sample_mask[batch_sample_i] = True
 
                             if batch_sample_mask[batch_sample_i]:
@@ -256,7 +257,8 @@ def predict_graphs(eval_args):
                             if batch_postfix_mask_i[batch_sample_i] == -1:
                                 for postfix_i, mask in enumerate(postfix_mask):
                                     if mask[vertex1[batch_sample_i]] == True \
-                                        and mask[vertex2[batch_sample_i]] == True:
+                                        and mask[vertex2[batch_sample_i]] == True \
+                                        and batch_postfix_mask_i.count(postfix_i) <= eval_args.batch_size // len(postfix_mask) + 1:
                                         # If the sampled vertex1 and vertex2 has the desired postfix, set the mask
                                         batch_postfix_mask_i[batch_sample_i] = postfix_i
                                         batch_sample_mask[batch_sample_i] = True
@@ -361,7 +363,7 @@ def predict_graphs(eval_args):
             nb = feature_map['node_backward']
             eb = feature_map['edge_backward']
             for i in range(eval_args.batch_size):
-                if batch_sample_repeat_cnt[i] >= 5:   # Skip this sample (Not used for graph generation)
+                if batch_sample_repeat_cnt[i] >= LIMIT_REPEAT:   # Skip this sample (Not used for graph generation)
                     continue
 
                 dfscode = []

@@ -26,7 +26,7 @@ class ArgsEvaluate():
     def __init__(self, model_path):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:1' if torch.cuda.is_available() else 'cpu')
+            'cuda:2' if torch.cuda.is_available() else 'cpu')
 
         self.model_path = model_path
 
@@ -46,15 +46,16 @@ if __name__ == "__main__":
     parser.add_argument('--train_or_test', type=str, default='test', help='Compare with train or test graphs')
     parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing test graphs')
     parser.add_argument('--diff_node_type_time', action='store_true', default=False, help='Time-aware node types [add "--diff_node_type_time" to enable]')
+    parser.add_argument('--time_gen_graph_num', type=int, default=30, help='Number of generated time graphs (early, mid, late) per label')
     parser.add_argument('--avg_sims_csv_postfix', type=str, default='', help='Postfix for the folder name to save the graph similarities')
     args = parser.parse_args()
 
     model_paths = {
         0: 'model_save/' + 'DFScodeRNN_MIMIC-Breast-diff_time_2025-05-02 22:27:26/DFScodeRNN_MIMIC-Breast-diff_time_3600.dat',
-        1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung-diff_time_2025-05-02 22:30:15/DFScodeRNN_MIMIC-Lung-diff_time_4600.dat',
-        2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary-diff_time_2025-05-04 19:22:40/DFScodeRNN_MIMIC-Ovary-diff_time_6600.dat',
+        1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung-diff_time_2025-05-02 22:30:15/DFScodeRNN_MIMIC-Lung-diff_time_4000.dat',
+        2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary-diff_time_2025-05-04 19:22:40/DFScodeRNN_MIMIC-Ovary-diff_time_3000.dat',
         3: 'model_save/' + 'DFScodeRNN_MIMIC-Colon-diff_time_2025-05-02 22:29:10/DFScodeRNN_MIMIC-Colon-diff_time_4400.dat',
-        4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4100.dat'
+        4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4000.dat'
     }
 
     # Load generated graphs
@@ -80,7 +81,54 @@ if __name__ == "__main__":
                 if 'label' in gen_g.nodes[node]:
                     gen_g.nodes[node]['type'] = gen_g.nodes[node].pop('label')
 
-        label_gen_graphs[label] = gen_graphs
+        print("Rename edge labels to 'edge_type' in generated graphs")
+        for gen_g in gen_graphs:
+            for edge in gen_g.edges:
+                if 'label' in gen_g.edges[edge]:
+                    gen_g.edges[edge]['edge_type'] = gen_g.edges[edge].pop('label')
+
+        if args.diff_node_type_time:
+            sample_num = args.time_gen_graph_num  # Number of early, mid, and late graph samples to keep
+
+            early_graphs = []
+            mid_graphs = []
+            late_graphs = []
+            for G in gen_graphs:
+                labels = [attr.get("type", "") for _, attr in G.nodes(data=True)]
+                if any(label.endswith("_early") for label in labels):
+                    early_graphs.append(G)
+                elif any(label.endswith("_mid") for label in labels):
+                    mid_graphs.append(G)
+                elif any(label.endswith("_late") for label in labels):
+                    late_graphs.append(G)
+            
+            # 取出每個label的early, mid, late graph的前sample_num張生成圖，不足用其他補齊
+            sample_idx = 0
+            label_gen_graphs[label] = []
+            while len(label_gen_graphs[label]) < sample_num * 3:
+                if sample_idx < len(early_graphs):
+                    G = early_graphs[sample_idx]
+                    label_gen_graphs[label].append(G)
+
+                if sample_idx < len(mid_graphs):
+                    G = mid_graphs[sample_idx]
+                    label_gen_graphs[label].append(G)
+
+                if sample_idx < len(late_graphs):
+                    G = late_graphs[sample_idx]
+                    label_gen_graphs[label].append(G)
+                    
+                sample_idx += 1
+
+            label_gen_graphs[label] = label_gen_graphs[label][:sample_num * 3]
+
+            print(len(label_gen_graphs[label]), "generated graphs for label", label)
+            print("Number of early graphs:", len(early_graphs))
+            print("Number of mid graphs:", len(mid_graphs))
+            print("Number of late graphs:", len(late_graphs))
+        
+        else:
+            label_gen_graphs[label] = gen_graphs
 
     # Load test graphs
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
@@ -136,7 +184,7 @@ if __name__ == "__main__":
             for lbl in range(num_labels):
                 gen_graphs = label_gen_graphs[lbl][:num_gen_graphs]
                 # Use list comprehension, but pre-bind the function for less overhead
-                sims = [calc_sim(g, gen_g, node_attr_name='type') for gen_g in gen_graphs]
+                sims = [calc_sim(g, gen_g, node_attr_name='type', edge_attr_name='edge_type') for gen_g in gen_graphs]
                 sim_matrix[lbl, :] = sims
             np.save(graph_path, sim_matrix)
 
@@ -162,13 +210,13 @@ if __name__ == "__main__":
         # Append a 0 for label 5 (others)
         fix_norm_avg_sims = np.append(norm_avg_sims, 0.0)
 
-        # Add bias to label 5 (others) 
+        # Add bias to label 5 (others) (_v2)
         avg_val = np.mean(norm_avg_sims)
         bias = 0.05
         if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
-            fix_norm_avg_sims[5] = min(avg_val + bias, 0.25)  # 不超過 0.25
+            fix_norm_avg_sims[-1] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
-        # Apply sigmoid scaling
+        # Apply sigmoid scaling (_sig_scal)
         # scaled_sims = (fix_norm_avg_sims - 0.2) * 50
         # fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
 

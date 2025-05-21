@@ -16,9 +16,9 @@ class ArgsEvaluate():
     def __init__(self):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:3' if torch.cuda.is_available() else 'cpu')
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4100.dat' # 'model_name'
+        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4000.dat' # 'model_name'
         # Whether the node types of graph are time-aware
         self.diff_node_type_time = True
 
@@ -28,7 +28,7 @@ class ArgsEvaluate():
         # Whether to generate networkx format graphs for real datasets
         self.generate_graphs = True
 
-        self.count = 20000    # 2560   # Number of graphs to generate
+        self.count = 40000    # 2560   # Number of graphs to generate
         self.batch_size = 25    # 32  # Must be a factor of count
 
         self.metric_eval_batch_size = 256
