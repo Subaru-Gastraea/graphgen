@@ -1,0 +1,2 @@
+[2025-06-25 14:48:46] Create test graphs: 5.426824 seconds
+[2025-06-25 16:29:12] Calculate similarity for test graphs: 4357.899947 seconds

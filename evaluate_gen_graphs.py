@@ -22,11 +22,13 @@ from tqdm import tqdm
 import argparse
 from sklearn.metrics import classification_report, confusion_matrix
 
+import time
+
 class ArgsEvaluate():
     def __init__(self, model_path):
         # Can manually select the device too
         self.device = torch.device(
-            'cuda:2' if torch.cuda.is_available() else 'cpu')
+            'cuda:0' if torch.cuda.is_available() else 'cpu')
 
         self.model_path = model_path
 
@@ -45,18 +47,36 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--train_or_test', type=str, default='test', help='Compare with train or test graphs')
     parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing test graphs')
-    parser.add_argument('--diff_node_type_time', action='store_true', default=False, help='Time-aware node types [add "--diff_node_type_time" to enable]')
-    parser.add_argument('--time_gen_graph_num', type=int, default=30, help='Number of generated time graphs (early, mid, late) per label')
-    parser.add_argument('--avg_sims_csv_postfix', type=str, default='', help='Postfix for the folder name to save the graph similarities')
     args = parser.parse_args()
 
     model_paths = {
-        0: 'model_save/' + 'DFScodeRNN_MIMIC-Breast-diff_time_2025-05-02 22:27:26/DFScodeRNN_MIMIC-Breast-diff_time_3600.dat',
-        1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung-diff_time_2025-05-02 22:30:15/DFScodeRNN_MIMIC-Lung-diff_time_4000.dat',
-        2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary-diff_time_2025-05-04 19:22:40/DFScodeRNN_MIMIC-Ovary-diff_time_3000.dat',
-        3: 'model_save/' + 'DFScodeRNN_MIMIC-Colon-diff_time_2025-05-02 22:29:10/DFScodeRNN_MIMIC-Colon-diff_time_4400.dat',
-        4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4000.dat'
+        0: 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat',
+        1: 'model_save/' + 'DFScodeRNN_MIMIC-Lung_2025-04-18 01:22:37/DFScodeRNN_MIMIC-Lung_3200.dat',
+        2: 'model_save/' + 'DFScodeRNN_MIMIC-Ovary_2025-04-18 01:28:11/DFScodeRNN_MIMIC-Ovary_4000.dat',
+        3: 'model_save/' + 'DFScodeRNN_MIMIC-Colon_2025-04-18 01:30:38/DFScodeRNN_MIMIC-Colon_4000.dat',
+        4: 'model_save/' + 'DFScodeRNN_MIMIC-Prostate_2025-04-18 01:32:00/DFScodeRNN_MIMIC-Prostate_3940.dat'
     }
+
+    # Load test graphs
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+    sample_dataset_path = pathlib.Path(project_root) / 'dataset/preprocessed_data/sample_dataset.pkl'
+
+    if os.path.exists(sample_dataset_path):
+        with open(sample_dataset_path, 'rb') as f:
+            sample_dataset = pickle.load(f)
+
+    print(f"Loading {args.train_or_test} graphs...")
+    dataset = GraphDataset(sample_dataset, dev=False, project_root=project_root)
+    del sample_dataset
+    dataset.set_split(args.train_or_test)
+    
+    if args.train_or_test == 'test':
+        print("Time slice percentage:", args.time_slice_pct)
+        print("Slicing graphs...")
+        dataset.time_slice_graphs(args.time_slice_pct)
+    
+    duration = 0.0
+    start_time = time.time()
 
     # Load generated graphs
     label_gen_graphs = {}
@@ -87,74 +107,15 @@ if __name__ == "__main__":
                 if 'label' in gen_g.edges[edge]:
                     gen_g.edges[edge]['edge_type'] = gen_g.edges[edge].pop('label')
 
-        if args.diff_node_type_time:
-            sample_num = args.time_gen_graph_num  # Number of early, mid, and late graph samples to keep
+        label_gen_graphs[label] = gen_graphs
 
-            early_graphs = []
-            mid_graphs = []
-            late_graphs = []
-            for G in gen_graphs:
-                labels = [attr.get("type", "") for _, attr in G.nodes(data=True)]
-                if any(label.endswith("_early") for label in labels):
-                    early_graphs.append(G)
-                elif any(label.endswith("_mid") for label in labels):
-                    mid_graphs.append(G)
-                elif any(label.endswith("_late") for label in labels):
-                    late_graphs.append(G)
-            
-            # 取出每個label的early, mid, late graph的前sample_num張生成圖，不足用其他補齊
-            sample_idx = 0
-            label_gen_graphs[label] = []
-            while len(label_gen_graphs[label]) < sample_num * 3:
-                if sample_idx < len(early_graphs):
-                    G = early_graphs[sample_idx]
-                    label_gen_graphs[label].append(G)
+    end_time = time.time()
+    duration += end_time - start_time
 
-                if sample_idx < len(mid_graphs):
-                    G = mid_graphs[sample_idx]
-                    label_gen_graphs[label].append(G)
-
-                if sample_idx < len(late_graphs):
-                    G = late_graphs[sample_idx]
-                    label_gen_graphs[label].append(G)
-                    
-                sample_idx += 1
-
-            label_gen_graphs[label] = label_gen_graphs[label][:sample_num * 3]
-
-            print(len(label_gen_graphs[label]), "generated graphs for label", label)
-            print("Number of early graphs:", len(early_graphs))
-            print("Number of mid graphs:", len(mid_graphs))
-            print("Number of late graphs:", len(late_graphs))
-        
-        else:
-            label_gen_graphs[label] = gen_graphs
-
-    # Load test graphs
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-    sample_dataset_path = pathlib.Path(project_root) / 'dataset/preprocessed_data/sample_dataset.pkl'
-
-    if os.path.exists(sample_dataset_path):
-         with open(sample_dataset_path, 'rb') as f:
-            sample_dataset = pickle.load(f)
-   
-    print(f"Loading {args.train_or_test} graphs...")
-    dataset = GraphDataset(sample_dataset, dev=False, diff_node_type_time=args.diff_node_type_time, project_root=project_root)
-    del sample_dataset
-    dataset.set_split(args.train_or_test)
-    
-    if args.train_or_test == 'test':
-        print("Time slice percentage:", args.time_slice_pct)
-        print("Slicing graphs...")
-        dataset.time_slice_graphs(args.time_slice_pct)
-    
     FILT_SIM_ZERO = True  # 是否過濾相似度為0的圖
     print(f"Filtering zero similarity: {FILT_SIM_ZERO}")
 
-    if args.diff_node_type_time:
-        sim_path_root = pathlib.Path(f'time_aware_sims/')
-    else:
-        sim_path_root = pathlib.Path(f'non_time_aware_sims/')
+    sim_path_root = pathlib.Path(f'non_time_aware_sims/')
     if args.train_or_test == 'train':
         sim_path = sim_path_root / 'train_graph_sims/'
     else:
@@ -178,15 +139,23 @@ if __name__ == "__main__":
         if os.path.exists(graph_path):
             sim_matrix = np.load(graph_path)
         else:
+            start_time = time.time()
+
             sim_matrix = np.zeros((num_labels, num_gen_graphs))
             calc_sim = dataset.calculate_similarity
             # Use numpy vectorization where possible, and avoid repeated attribute lookups
             for lbl in range(num_labels):
                 gen_graphs = label_gen_graphs[lbl][:num_gen_graphs]
                 # Use list comprehension, but pre-bind the function for less overhead
-                sims = [calc_sim(g, gen_g, node_attr_name='type', edge_attr_name='edge_type') for gen_g in gen_graphs]
+                sims = [calc_sim(g, gen_g, node_attr_name='type') for gen_g in gen_graphs]
                 sim_matrix[lbl, :] = sims
+
+            end_time = time.time()
+            duration += end_time - start_time
+
             np.save(graph_path, sim_matrix)
+
+        start_time = time.time()
 
         if FILT_SIM_ZERO:
             # 過濾每個label下相似度為0的生成圖
@@ -216,37 +185,37 @@ if __name__ == "__main__":
         if np.max(norm_avg_sims) <= avg_val:    # label 0 ~ 4 are 0.2
             fix_norm_avg_sims[-1] = min(avg_val + bias, 0.25)  # 不超過 0.25
 
-        # Apply sigmoid scaling (_sig_scal)
-        # scaled_sims = (fix_norm_avg_sims - 0.2) * 50
-        # fix_norm_avg_sims = 1 / (1 + np.exp(-scaled_sims))
-
         # Collect all norm_avg_sims for saving later
         all_norm_avg_sims.append(fix_norm_avg_sims)
 
+        end_time = time.time()
+        duration += end_time - start_time
+
         # multi-class prediction
-        pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
+        # pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
+
+    event = "Calculate similarity for test graphs"
+    log_message = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {event}: {duration:.6f} seconds\n"
+    with open('logfile.txt', 'a') as f:
+        f.write(log_message)
 
     # Save all norm_avg_sims to a CSV file
-    avg_sims_csv_postfix = args.avg_sims_csv_postfix
-    if avg_sims_csv_postfix and not avg_sims_csv_postfix.startswith('_'):
-        avg_sims_csv_postfix = '_' + avg_sims_csv_postfix
-        
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
-    all_norm_avg_sims_df.to_csv(sim_path / f'{args.train_or_test}_norm_avg_sims{avg_sims_csv_postfix}.csv', index=False, header=False)
+    all_norm_avg_sims_df.to_csv(sim_path / f'{args.train_or_test}_norm_avg_sims.csv', index=False, header=False)
 
-    if args.train_or_test == 'test':
-        # 評估: multi-class classification
-        print(classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, zero_division=0))
-        print("Confusion matrix:")
-        print(confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1))))
+    # if args.train_or_test == 'test':
+    #     # 評估: multi-class classification
+    #     print(classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, zero_division=0))
+    #     print("Confusion matrix:")
+    #     print(confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1))))
 
-        # Save classification report to file
-        report = classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False, zero_division=0)
-        with open('classification_report.txt', 'w') as f:
-            f.write(report)
+    #     # Save classification report to file
+    #     report = classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False, zero_division=0)
+    #     with open('classification_report.txt', 'w') as f:
+    #         f.write(report)
 
-        # Save confusion matrix to file
-        cm = confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1)))
-        cm_df = pd.DataFrame(cm, index=[f"True_{i}" for i in range(num_labels+1)],
-                                columns=[f"Pred_{i}" for i in range(num_labels+1)])
-        cm_df.to_csv('confusion_matrix.csv')
+    #     # Save confusion matrix to file
+    #     cm = confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1)))
+    #     cm_df = pd.DataFrame(cm, index=[f"True_{i}" for i in range(num_labels+1)],
+    #                             columns=[f"Pred_{i}" for i in range(num_labels+1)])
+    #     cm_df.to_csv('confusion_matrix.csv')
