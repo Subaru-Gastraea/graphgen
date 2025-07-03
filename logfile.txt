@@ -1,2 +1,11 @@
+100% graph time
 [2025-06-25 14:48:46] Create test graphs: 5.426824 seconds
 [2025-06-25 16:29:12] Calculate similarity for test graphs: 4357.899947 seconds
+
+[2025-06-30 10:55:10] Create test graphs: 5.085516 seconds
+
+50% graph time
+[2025-07-01 14:34:40] Create test graphs: 4.975970 seconds
+[2025-07-01 15:42:08] Calculate similarity for test graphs: 3009.110464 seconds
+[2025-07-01 16:04:26] Create test graphs: 5.179307 seconds
+[2025-07-01 17:01:15] Calculate similarity for test graphs: 2473.932348 seconds

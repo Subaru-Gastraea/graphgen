@@ -20,7 +20,6 @@ import numpy as np
 from tqdm import tqdm
 
 import argparse
-from sklearn.metrics import classification_report, confusion_matrix
 
 import time
 
@@ -47,6 +46,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--train_or_test', type=str, default='test', help='Compare with train or test graphs')
     parser.add_argument('--time_slice_pct', type=float, default=1.0, help='Percentage of time for slicing test graphs')
+    parser.add_argument('--output_log', type=bool, default=False, help='Whether to output logs to "logfile.txt" file')
     args = parser.parse_args()
 
     model_paths = {
@@ -191,31 +191,12 @@ if __name__ == "__main__":
         end_time = time.time()
         duration += end_time - start_time
 
-        # multi-class prediction
-        # pred_labels.append(int(np.argmax(fix_norm_avg_sims)))
-
-    event = "Calculate similarity for test graphs"
-    log_message = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {event}: {duration:.6f} seconds\n"
-    with open('logfile.txt', 'a') as f:
-        f.write(log_message)
+    if args.train_or_test == 'test' and args.output_log:
+        event = "Calculate similarity for test graphs"
+        log_message = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {event}: {duration:.6f} seconds\n"
+        with open('logfile.txt', 'a') as f:
+            f.write(log_message)
 
     # Save all norm_avg_sims to a CSV file
     all_norm_avg_sims_df = pd.DataFrame(all_norm_avg_sims)
     all_norm_avg_sims_df.to_csv(sim_path / f'{args.train_or_test}_norm_avg_sims.csv', index=False, header=False)
-
-    # if args.train_or_test == 'test':
-    #     # 評估: multi-class classification
-    #     print(classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, zero_division=0))
-    #     print("Confusion matrix:")
-    #     print(confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1))))
-
-    #     # Save classification report to file
-    #     report = classification_report(true_labels, pred_labels, labels=list(range(num_labels+1)), digits=4, output_dict=False, zero_division=0)
-    #     with open('classification_report.txt', 'w') as f:
-    #         f.write(report)
-
-    #     # Save confusion matrix to file
-    #     cm = confusion_matrix(true_labels, pred_labels, labels=list(range(num_labels+1)))
-    #     cm_df = pd.DataFrame(cm, index=[f"True_{i}" for i in range(num_labels+1)],
-    #                             columns=[f"Pred_{i}" for i in range(num_labels+1)])
-    #     cm_df.to_csv('confusion_matrix.csv')
