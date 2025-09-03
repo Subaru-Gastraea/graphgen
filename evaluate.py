@@ -18,9 +18,7 @@ class ArgsEvaluate():
         self.device = torch.device(
             'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Prostate-diff_time_2025-05-02 22:31:03/DFScodeRNN_MIMIC-Prostate-diff_time_4000.dat' # 'model_name'
-        # Whether the node types of graph are time-aware
-        self.diff_node_type_time = True
+        self.model_path = 'model_save/' + 'DFScodeRNN_MIMIC-Breast_2025-04-18 16:55:56/DFScodeRNN_MIMIC-Breast_3940.dat'    # 'model_name'
 
         self.num_epochs = get_model_attribute(
             'epoch', self.model_path, self.device)
